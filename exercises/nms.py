@@ -24,7 +24,19 @@ def calculate_iou(box1, box2):
     # 请在此处编写代码
     # (与 iou.py 中的练习相同，可以复用代码或导入)
     # 提示：计算交集面积和并集面积，然后相除。
-    pass
+    x_left=max(box1[0],box2[0])
+    y_top=max(box1[1],box2[1])
+    x_right=min(box1[2],box2[2])
+    y_bottom=min(box1[3],box2[3])
+    intersection_area=max(0,x_right-x_left)*max(0,y_bottom-y_top)
+    box1_area=(box1[2]-box1[0])*(box1[3]-box1[1])
+    box2_area=(box2[2]-box2[0])*(box2[3]-box2[1])
+    union_area=box1_area+box2_area-intersection_area
+    if union_area==0:
+        iou = 0.0
+    else:
+        iou = intersection_area/union_area
+    return iou
 
 def nms(boxes, scores, iou_threshold):
     """
@@ -52,4 +64,62 @@ def nms(boxes, scores, iou_threshold):
     #    c. 找到 IoU 小于等于 iou_threshold 的索引 inds。
     #    d. 更新 order，只保留那些 IoU <= threshold 的框的索引 (order = order[inds + 1])。
     # 7. 返回 keep 列表。
-    pass 
+    
+
+    # 2. 将 boxes 和 scores 转换为 NumPy 数组。(已经是np.array)
+    boxes = np.asarray(boxes)
+    scores = np.asarray(scores)
+    
+    
+    # 1. 如果 boxes 为空，直接返回空列表。
+    if boxes.shape[0] == 0:
+        return []
+
+    
+    # 3. 计算所有边界框的面积 areas。
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 2]
+    y2 = boxes[:, 3]
+    areas = (x2 - x1) * (y2 - y1) # 注意：如果x2-x1或y2-y1为0或负数，面积会是0或负数，这在IoU计算中通常没问题，因为交集也会是0
+
+    # 4. 根据 scores 对边界框索引进行降序排序 (order = np.argsort(scores)[::-1])。
+    order = np.argsort(scores)[::-1]
+
+    # 5. 初始化一个空列表 keep 用于存储保留的索引。
+    keep = []
+
+    # 6. 当 order 列表不为空时循环：
+    while order.size > 0:
+        # a. 取出 order 中的第一个索引 i (当前分数最高的框)，加入 keep。
+        i = order[0]
+        keep.append(i)
+
+        # b. 计算框 i 与 order 中剩余所有框的 IoU。
+        #    (需要计算交集区域坐标 xx1, yy1, xx2, yy2 和交集面积 intersection)
+        # 获取剩余框的坐标
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        # 计算交集区域的宽度和高度
+        w = np.maximum(0.0, xx2 - xx1)
+        h = np.maximum(0.0, yy2 - yy1)
+        intersection = w * h
+
+        # 计算 IoU
+        iou = intersection / (areas[i] + areas[order[1:]] - intersection)
+
+        # c. 找到 IoU 小于等于 iou_threshold 的索引 inds。
+        #    注意：这里是找到 order[1:] 中 IoU <= threshold 的框
+        #    然后这些框的索引是相对于 order[1:] 的，所以要 +1 对应回原始 order 中的位置
+        inds = np.where(iou <= iou_threshold)[0]
+
+        # d. 更新 order，只保留那些 IoU <= threshold 的框的索引 (order = order[inds + 1])。
+        #    order[0] 是当前处理的框，order[1:] 是剩余的框。
+        #    我们从 order[1:] 中筛选，所以索引要加 1
+        order = order[inds + 1]
+
+    # 7. 返回 keep 列表。
+    return keep
